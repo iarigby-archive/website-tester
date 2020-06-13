@@ -1,7 +1,8 @@
 import webdriver from 'selenium-webdriver'
 import path from "path"
+import fs from 'fs'
 
-const {By, until} = webdriver
+// const {By, until} = webdriver
 
 import {ChildProcess, fork} from 'child_process'
 
@@ -27,22 +28,28 @@ export interface Result {
 export class WebTester {
     server: ChildProcess;
 
-    constructor(testFile: string) {
+    constructor(private testFile: string) {
         this.server = fork(path.resolve(__dirname, '../lib/webServer'))
     }
 
-    testSubmission(dir: string): Promise<Result[]> {
+    testSubmission(dir: string, replaceFile: boolean = true): Promise<Result[]> {
         // verify that index.html has the test file
-        // backup old test file
-        // copy testfile to location
-        // backup html file
-        // inject mocha.run() into html file
-        // run the test
+        const testLocation = `${dir}/tests.js`
+        if (replaceFile) {
+            try {
+                fs.renameSync(testLocation, `${dir}/tests.old.js`)
+            } catch(e) {}
+            fs.copyFileSync(this.testFile, testLocation)
+        }
+        return this.visitPage(dir)
+    }
+
+    visitPage(dir: string): Promise<Result[]> {
         return new Promise((resolve, reject) => {
             this.server.on('message', (m: Result[]) => {
                 resolve(m)
             })
-            driver.get(dir)
+            driver.get(`file://${dir}/index.html`)
         })
     }
 
