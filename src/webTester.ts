@@ -23,33 +23,44 @@ export interface Result {
     error?: boolean
     details?: string
     message: string
+    score?: number
 }
 
 export class WebTester {
     server: ChildProcess;
 
-    constructor(private testFile: string) {
+    constructor(private testFiles: any) {
         this.server = fork(path.resolve(__dirname, '../lib/webServer'))
     }
 
-    testSubmission(dir: string, replaceFile: boolean = true): Promise<Result[]> {
+    async testSubmission(dir: string, replaceFile: boolean = true, fileList: string[] = ['index']): Promise<Result[]> {
         // verify that index.html has the test file
-        const testLocation = `${dir}/tests.js`
-        if (replaceFile) {
-            try {
-                fs.renameSync(testLocation, `${dir}/tests.old.js`)
-            } catch(e) {}
-            fs.copyFileSync(this.testFile, testLocation)
+        let allResults: Result[] = []
+        for (let file of fileList) {
+            console.log('testing ' + file)
+            if (replaceFile) {
+                const testName = file === 'index' ? 'tests' : `tests_${file}`
+                const testLocation = `${dir}/${testName}.js`
+                try {
+                    fs.renameSync(testLocation, `${dir}/${testName}.old.js`)
+                } catch (e) {
+                }
+                fs.copyFileSync(this.testFiles[file], testLocation)
+            }
+            const results = await this.visitPage(`file://${dir}/${file}.html`)
+            allResults = allResults.concat(results)
         }
-        return this.visitPage(dir)
+        return allResults
     }
 
-    visitPage(dir: string): Promise<Result[]> {
+    visitPage(path: string): Promise<Result[]> {
+        const timeoutError: Result[] = [{error: true, message: 'tester timeout exceeded 30 seconds'}]
         return new Promise((resolve, reject) => {
+            setTimeout(() => resolve(timeoutError), 30000)
             this.server.on('message', (m: Result[]) => {
                 resolve(m)
             })
-            driver.get(`file://${dir}/index.html`)
+            driver.get(path)
         })
     }
 
